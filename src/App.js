@@ -9,8 +9,7 @@ function App() {
   const [provider, setProvider] = useState(null)
   useEffect(()=>{
     setWeb3Modal(new Web3Modal({
-      network: 'ropsten', // optional
-      //network: 'mainnent', // optional
+      network: 'goerli', // optional
       cacheProvider: true, // optional
       providerOptions: {}, // required
     }))
@@ -50,6 +49,7 @@ function App() {
   },[provider])
 
   const connectWallet = async () => {
+    
     const _provider = await web3Modal.connect()
     _provider && setProvider(_provider)
   }
