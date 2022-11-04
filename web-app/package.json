@@ -17,7 +17,10 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "aws:purge": "aws cloudfront create-invalidation --distribution-id ESHN066XP94IU --paths \"/index.html\"",
+    "aws:release": "aws s3 cp \"/Users/pedropelicano/repos/recruitment-protocol/web-app/build\" s3://djinndao --recursive",
+    "aws": "npm run build && npm run aws:release && npm run aws:purge"
   },
   "eslintConfig": {
     "extends": [

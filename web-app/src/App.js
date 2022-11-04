@@ -7,6 +7,7 @@ function App() {
   const [web3Modal, setWeb3Modal] = useState(null)
   const [web3, setWeb3] = useState(null)
   const [provider, setProvider] = useState(null)
+  const [address, setAddress] = useState(null)
   useEffect(()=>{
     setWeb3Modal(new Web3Modal({
       network: 'goerli', // optional
@@ -23,10 +24,13 @@ function App() {
     if (provider) {
       provider.on("accountsChanged", (accounts) => {
         console.log("accountsChanged", accounts)
-        if (!accounts.length) {
+        if (!accounts?.length) {
           setProvider(null)
           setWeb3(null)
-        } 
+          setAddress(null)
+        } else {
+          setAddress(accounts[0])
+        }
       });
       
       // Subscribe to chainId change
@@ -49,7 +53,6 @@ function App() {
   },[provider])
 
   const connectWallet = async () => {
-    
     const _provider = await web3Modal.connect()
     _provider && setProvider(_provider)
   }
@@ -81,11 +84,11 @@ function App() {
     //       })
   }
 
-console.log("web3", web3)
+console.log("web3", web3?.eth?.accounts)
   return (
     <div className="App">
       {!web3 && <button onClick={()=>{connectWallet()}}>Connect to your wallet!</button>}
-      {web3 && <button onClick={()=>{createSecryptSubdomain()}}>Create your secret!</button>}
+      {web3 && <h1>Welcome you are logged in!</h1>}
     </div>
   );
 }
