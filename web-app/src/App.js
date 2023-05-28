@@ -1,170 +1,119 @@
-import { useEffect, useRef, useState } from 'react'
-import Web3Modal from 'web3modal'
-import Web3 from 'web3'
-import abi from './abi.json'
-import ContractAddresses from './contract-addresses.json'
-import './App.css';
-
-const MinterMock = abi.output.contracts["contracts/MinterMock.sol"].MinterMock.abi
-const Recruitment = abi.output.contracts["contracts/Recruitment.sol"].Recruitment.abi
-const EnsSubdomainFactory = abi.output.contracts["contracts/EnsSubdomainFactory.sol"].EnsSubdomainFactory.abi
-console.log(MinterMock)
-console.log(Recruitment)
-console.log(EnsSubdomainFactory)
-
+import { useEffect, useRef, useState } from "react";
+import { useSelector, useDispatch } from 'react-redux'
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Web3 from "web3";
+import { removeWeb3, createWeb3 } from './components/login/web3Slice'
+import { createWeb3Modal } from './components/login/web3ModalSlice'
+import { login, logout } from './components/login/userSlice'
+import { setWeb3Recruitment } from './components/login/web3RecruitmentSlice'
+import { createProvider, removeProvider } from './components/login/providerSlice'
+import Web3Modal from "web3modal"
+import { db } from "./db"
+import { useLiveQuery } from "dexie-react-hooks";
+import Navbar from "./components/navbar";
+import HowItWorksRoute from "./routes/how-it-works";
+import AboutUsRoute from "./routes/about-us";
+import LoginRoute from "./routes/login";
+import MyAccountRoute from "./routes/my-account";
+import ClientRoute from "./routes/client";
+import JobRoute from "./routes/job";
+import JobsRoute from "./routes/jobs";
+import ContractAddresses from "../src/contract-addresses.json";
+import abi from "../src/abi.json";
+import "./css/normalize.css";
+import "./css/skeleton.css";
+import "./App.css";
+const Recruitment =
+  abi.output.contracts["contracts/Recruitment.sol"].Recruitment.abi;
 function App() {
-  const [web3Modal, setWeb3Modal] = useState(null)
-  const [web3, setWeb3] = useState(null)
-  const [currentAccount, setCurrentAccount] = useState(null)
-  const [provider, setProvider] = useState(null)
-  const [address, setAddress] = useState(null)
-  const [contract_EnsSubdomainFactory, setContract_EnsSubdomainFactory] = useState(null)
-  const [contract_Recruitment, setContract_Recruitment] = useState(null)
-  const [contract_MinterMock, setContract_MinterMock] = useState(null)
-  useEffect(()=>{
-    setWeb3Modal(new Web3Modal({
-      network: 'goerli', // optional
-      cacheProvider: true, // optional
-      providerOptions: {}, // required
-    }))
-  },[]);
+  const dbUser = useLiveQuery(
+    () => 
+      db.user.toArray()
+  );
+  const dispatch = useDispatch()
+  const user = useSelector((state) => state.user.value)
+  const web3 = useSelector((state) => state.web3.value)
+  const web3Modal = useSelector((state) => state.web3Modal.value)
+  const [provider, setProvider] = useState(null);
+  useEffect(() => {
+    console.log("Appp => webModal", web3Modal);
+    web3Modal && typeof web3Modal.connect === "function" && web3Modal.connect().then((provider) => {
+        setProvider(provider)
+      });
+    if (web3Modal && typeof web3Modal.connect === "undefined") 
+      dispatch(createWeb3Modal(new Web3Modal({
+          network: "goerli", // optional
+          cacheProvider: true, // optional
+          providerOptions: {}, // required
+      })));
+  },[web3Modal])
 
   useEffect(() => {
-    web3Modal && web3Modal.connect().then(provider => {
-      setWeb3(new Web3(provider))
-    })
-    //web3Modal && connectWallet()
-  }, [web3Modal])
-  
+    console.log("APP ************* web3", web3)
+    if (web3) {  
+      if (web3.eth._provider) {
+        web3.eth.getAccounts().then((accounts) => {
+          let _user = {id: accounts[0], web3Address: accounts[0] , online: true, email: user.email}
+          dispatch(login(_user))
+          //dispatch(setWeb3Recruitment(new web3.eth.Contract(Recruitment, ContractAddresses.Recruitment)))
+          db.user.where({web3Address: accounts[0]}).then((__user) => { db.user.put({__user, _user}); })
+        });
+      }
+    }
+  }, [web3]);
+
   useEffect(()=> {
     if (provider) {
-      provider.on('accountsChanged', (accounts) => {
-        console.log('accountsChanged', accounts)
-        if (!accounts?.length) {
-          setProvider(null)
-          setWeb3(null)
-          setAddress(null)
+      provider.on("accountsChanged", (accounts) => {
+        console.log("accountsChanged", accounts)
+        if (!accounts.length) {
+          dispatch(removeWeb3())
+          dispatch(logout())
+          db.user.clear()
         } else {
-          setAddress(accounts[0])
+          dispatch(login({web3Address: accounts[0], online: true}));
         }
       });
       
       // Subscribe to chainId change
-      provider.on('chainChanged', (chainId) => {
-        console.log('chainChanged', chainId);
+      provider.on("chainChanged", (chainId) => {
+        console.log("chainChanged", chainId);
       });
       
       // Subscribe to provider connection
-      provider.on('connect', (info) => {
-        console.log('connect',info);
+      provider.on("connect", (info) => {
+        alert("connect")
+        console.log("connect",info);
       });
       
       // Subscribe to provider disconnection
-      provider.on('disconnect', (error) => {
-        console.log('disconnect',error);
+      provider.on("disconnect", (error) => {
+        alert("disconnect")
+        console.log("disconnect",error);
       });
     }
-    
-    setWeb3(provider ? new Web3(provider) : null)
+    if (provider)
+      dispatch(createWeb3(new Web3(provider)))
   },[provider])
 
-  useEffect(()=>{
-    if (web3) {
-      setContract_EnsSubdomainFactory(new web3.eth.Contract(EnsSubdomainFactory, ContractAddresses.EnsSubdomainFactory))
-      setContract_Recruitment(new web3.eth.Contract(Recruitment, ContractAddresses.Recruitment))
-      setContract_MinterMock(new web3.eth.Contract(MinterMock, ContractAddresses.MinterMock))
-      web3.eth.getAccounts().then(accounts => {
-        setCurrentAccount(accounts[0])
-      })
-    }
-  },[web3])
-
-  useEffect(() => {
-    if (contract_Recruitment && currentAccount) {
-      contract_Recruitment.methods.getWhitelistedTokenAddresses(
-        web3.utils.asciiToHex("DAI")
-      ).call({from: currentAccount}, function(error, result){
-          console.log("getWhitelistedTokenAddresses", error, result)
-      })
-
-      // contract_Recruitment.methods.whitelistToken(
-      //   web3.utils.asciiToHex('DAI'),
-      //   ContractAddresses.MinterMock
-      // ).send({from: currentAccount }).then(res => { console.log(res) })
-
-
-      contract_MinterMock.methods.balanceOf(currentAccount).call().then(result => {
-          console.log("daiContract balanceOf",result)
-      })
-    }
-  },[contract_Recruitment, currentAccount])
-  
-  const connectWallet = async () => {
-    const _provider = await web3Modal.connect()
-    _provider && setProvider(_provider)
-  }
-
-  const getGasAmountFor_Recruitment_initialDepositDAI = async () => {
-    return await contract_Recruitment.methods.initialDeposit(1000, web3.utils.asciiToHex("DAI Mock")).estimateGas({ from: currentAccount });
-  }
-
-  const initialDepositOnClick = async () => {
-    let txCount = await web3.eth.getTransactionCount(currentAccount),
-      decimals = await contract_MinterMock.methods.decimals().call({ from: currentAccount }),
-      value = `1000${'0'.repeat(decimals)}`
-    console.log("decimals",decimals)
-    console.log("txCount", txCount, await web3.eth.getGasPrice())
-    const txObject = {
-      nonce: web3.utils.toHex(txCount),
-      from: currentAccount,
-      //gasPrice: web3.utils.toHex(await web3.eth.getGasPrice()),
-      gas:      10000000,
-      //gasLimit: 8000000
-    }
-
-    // const gasAmmount = await getGasAmountFor_Recruitment_initialDepositDAI();
-    // console.log("gasAmmount", gasAmmount);
-    // return;
-
-    console.log(currentAccount);
-    console.log("TokenAddress", await contract_Recruitment.methods.TokenAddress().call({from: currentAccount}))
-    console.log("SenderAddress", await contract_Recruitment.methods.SenderAddress().call({from: currentAccount}))
-    console.log("ThisAddress", await contract_Recruitment.methods.ThisAddress().call({from: currentAccount}))
-
-    
-    let approveReceipt = await contract_MinterMock.methods.approve(ContractAddresses.Recruitment, value).send({ from: currentAccount });
-    console.log("approveReceipt", approveReceipt);
-    let response = await contract_Recruitment.methods.initialDeposit(
-      value,
-      web3.utils.asciiToHex('DAI')
-    ).send(txObject).then(res => { console.log(res) })
-    console.log(response)
-  }
-
   return (
-    <div className='App'>
-      {!web3 && <button onClick={()=>{connectWallet()}}>Connect to your wallet!</button>}
-      {web3 && (
-        <div className='form'>
-          <h1>Welcome you are logged in! {currentAccount}</h1>
-
-          <hr/>
-          <h1>Initial Deposit</h1>
-          <div>
-            <input placeholder='month1 refund %' />
-          </div>
-          <div>
-            <input placeholder='month2 refund %' />
-          </div>
-          <div>
-            <input placeholder='month3 refund %' />
-          </div>
-          <div>
-            <button onClick={initialDepositOnClick}>Deposit</button>
-          </div>
-        </div>
-      
-      )}
+    <div className="App">
+      <Router>
+        <Navbar />
+        <Routes>
+          <Route path="/how-it-works" element={<HowItWorksRoute />} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route path="/my-account" element={<MyAccountRoute />} />
+          <Route path="/my-account/:view" element={<MyAccountRoute />} />
+          <Route path="/client/:view/:jobid" element={<ClientRoute />} />
+          <Route path="/client/:view" element={<ClientRoute />} />
+          <Route path="/client" element={<ClientRoute />} />
+          <Route path="/:jobid/:company/:jobtitle" element={<JobRoute />} />
+          <Route path="/about-us" element={<AboutUsRoute />} />
+          <Route path="/jobs" element={<JobsRoute />} />
+          <Route path="/*" element={<JobsRoute />} />
+        </Routes>
+      </Router>
     </div>
   );
 }
